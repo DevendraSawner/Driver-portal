@@ -10,8 +10,6 @@ coverage/
 !.env.example
 .DS_Store
 api/prisma/*.db
-app/android/
-app/ios/
 app/.bundle/
 *.tsbuildinfo
 .vite/
