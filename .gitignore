@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+.expo/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+api/prisma/*.db
+app/android/
+app/ios/
+app/.bundle/
+*.tsbuildinfo
+.vite/

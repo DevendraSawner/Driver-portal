@@ -1,0 +1,518 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DRIVER
+  USER
+}
+
+enum AccountStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
+enum OtpPurpose {
+  REGISTER
+  PASSWORD_RESET
+}
+
+enum KycStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  DRIVING_LICENSE
+  IDENTITY_PROOF
+  ADDRESS_PROOF
+  POLICE_VERIFICATION
+  PROFILE_PHOTO
+}
+
+enum DocumentReviewStatus {
+  UPLOADED
+  ACCEPTED
+  REJECTED
+}
+
+enum OnlineStatus {
+  OFFLINE
+  ONLINE
+}
+
+enum VehicleType {
+  HATCHBACK
+  SEDAN
+  SUV
+  MUV
+  LUXURY
+  OTHER
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  CNG
+  ELECTRIC
+  HYBRID
+}
+
+enum BookingType {
+  IMMEDIATE
+  SCHEDULED
+}
+
+enum BookingStatus {
+  PENDING
+  SEARCHING_DRIVER
+  DRIVER_ASSIGNED
+  DRIVER_ACCEPTED
+  DRIVER_ON_THE_WAY
+  DRIVER_ARRIVED
+  TRIP_STARTED
+  TRIP_COMPLETED
+  CANCELLED_BY_USER
+  CANCELLED_BY_DRIVER
+  EXPIRED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentRail {
+  PLATFORM_PAYMENT
+  DIRECT_PAYMENT
+}
+
+enum DirectPaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  REFUNDED
+  DISPUTED
+}
+
+enum PlatformFeeStatus {
+  PENDING
+  DUE
+  PAID
+  WAIVED
+  REFUNDED
+}
+
+enum SettlementStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SettlementDirection {
+  PLATFORM_TO_DRIVER
+  DRIVER_TO_PLATFORM
+}
+
+enum PaymentReceiver {
+  PLATFORM
+  DRIVER
+}
+
+enum DirectConfirmStatus {
+  AWAITING_DRIVER
+  CONFIRMED
+  DISPUTED
+}
+
+enum PaymentTxnType {
+  CUSTOMER_PLATFORM_PAYMENT
+  CUSTOMER_DIRECT_PAYMENT
+  DRIVER_FEE_PAYMENT
+  DRIVER_PAYOUT
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum WalletAccount {
+  DRIVER_EARNING
+  DRIVER_PAYABLE
+  PLATFORM_FEE_RECEIVABLE
+  PLATFORM_CASH
+}
+
+enum PayoutMethodType {
+  UPI
+  BANK
+}
+
+model User {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  role            Role
+  phone           String         @unique
+  email           String?
+  passwordHash    String
+  fullName        String
+  status          AccountStatus  @default(PENDING_VERIFICATION)
+  phoneVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  refreshTokens   RefreshToken[]
+  otpChallenges   OtpChallenge[]
+  profile         UserProfile?
+  driverProfile   DriverProfile?
+  vehicles        CustomerVehicle[]
+  bookings        Booking[]         @relation("BookingCustomer")
+  assignedTrips   Booking[]         @relation("BookingDriver")
+
+  @@index([role, status])
+  @@index([deletedAt])
+}
+
+model RefreshToken {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String    @db.ObjectId
+  user              User      @relation(fields: [userId], references: [id])
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?   @db.ObjectId
+  userAgent         String?
+  ip                String?
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+}
+
+model OtpChallenge {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String?    @db.ObjectId
+  user         User?      @relation(fields: [userId], references: [id])
+  phone        String
+  purpose      OtpPurpose
+  codeHash     String
+  expiresAt    DateTime
+  attemptCount Int        @default(0)
+  consumedAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([phone, purpose, consumedAt])
+  @@index([expiresAt])
+}
+
+model UserProfile {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String    @unique @db.ObjectId
+  user                  User      @relation(fields: [userId], references: [id])
+  avatarUrl             String?
+  city                  String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  @@index([deletedAt])
+}
+
+model DriverProfile {
+  id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String           @unique @db.ObjectId
+  user               User             @relation(fields: [userId], references: [id])
+  fullName           String
+  avatarUrl          String?
+  dateOfBirth        DateTime?
+  city               String?
+  kycStatus          KycStatus        @default(PENDING)
+  kycReviewedAt      DateTime?
+  kycReviewedBy      String?          @db.ObjectId
+  kycRejectionReason String?
+  onlineStatus       OnlineStatus     @default(OFFLINE)
+  approvedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+  documents          DriverDocument[]
+
+  @@index([kycStatus])
+  @@index([onlineStatus])
+  @@index([city])
+  @@index([deletedAt])
+}
+
+model DriverDocument {
+  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  driverProfileId String               @db.ObjectId
+  driverProfile   DriverProfile        @relation(fields: [driverProfileId], references: [id])
+  type            DocumentType
+  fileKey         String
+  mimeType        String
+  status          DocumentReviewStatus @default(UPLOADED)
+  reviewedBy      String?              @db.ObjectId
+  reviewNote      String?
+  createdAt       DateTime             @default(now())
+
+  @@index([driverProfileId, type])
+}
+
+model CustomerVehicle {
+  id                 String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String       @db.ObjectId
+  user               User         @relation(fields: [userId], references: [id])
+  registrationNumber String
+  vehicleType        VehicleType
+  brand              String
+  model              String
+  transmission       Transmission
+  fuelType           FuelType
+  color              String?
+  rcFileKey          String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  deletedAt          DateTime?
+
+  @@index([userId, deletedAt])
+  @@index([registrationNumber])
+  bookings Booking[]
+}
+
+model Booking {
+  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  referenceCode      String        @unique
+  userId             String        @db.ObjectId
+  user               User          @relation("BookingCustomer", fields: [userId], references: [id])
+  vehicleId          String        @db.ObjectId
+  vehicle            CustomerVehicle @relation(fields: [vehicleId], references: [id])
+  driverId           String?       @db.ObjectId
+  driver             User?         @relation("BookingDriver", fields: [driverId], references: [id])
+  type               BookingType
+  status             BookingStatus
+  pickupAddress      String
+  pickupLat          Float
+  pickupLng          Float
+  destinationAddress String
+  destinationLat     Float
+  destinationLng     Float
+  scheduledAt        DateTime
+  estimatedFareMinor Int
+  platformFeeMinor   Int
+  driverEarningMinor Int
+  currency           String
+  feeBps             Int
+  searchExpiresAt    DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  cancelledById      String?       @db.ObjectId
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  statusHistory      BookingStatusHistory[]
+  offers             BookingOffer[]
+  payments           Payment[]
+
+  @@index([userId, createdAt])
+  @@index([driverId, status])
+  @@index([status, scheduledAt])
+  @@index([status, searchExpiresAt])
+  @@index([createdAt])
+}
+
+model BookingStatusHistory {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId   String         @db.ObjectId
+  booking     Booking        @relation(fields: [bookingId], references: [id])
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus
+  actorUserId String?        @db.ObjectId
+  actorRole   Role?
+  reason      String?
+  createdAt   DateTime       @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+model BookingOffer {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId   String      @db.ObjectId
+  booking     Booking     @relation(fields: [bookingId], references: [id])
+  driverId    String      @db.ObjectId
+  status      OfferStatus @default(PENDING)
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime    @default(now())
+
+  @@unique([bookingId, driverId])
+  @@index([driverId, status])
+}
+
+model Payment {
+  id                   String               @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId            String               @db.ObjectId
+  booking              Booking              @relation(fields: [bookingId], references: [id])
+  payerUserId          String               @db.ObjectId
+  driverId             String?              @db.ObjectId
+  rail                 PaymentRail
+  receiver             PaymentReceiver
+  directMethod         DirectPaymentMethod?
+  amountMinor          Int
+  currency             String
+  status               PaymentStatus
+  directConfirmStatus  DirectConfirmStatus?
+  customerReference    String?
+  provider             String?
+  providerRef          String?              @unique
+  idempotencyKey       String
+  confirmedByDriverAt  DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  transactions         PaymentTransaction[]
+
+  @@unique([payerUserId, idempotencyKey])
+  @@index([bookingId, status])
+  @@index([driverId, status])
+  @@index([status, createdAt])
+}
+
+model PaymentTransaction {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId   String?        @db.ObjectId
+  payment     Payment?       @relation(fields: [paymentId], references: [id])
+  settlementId String?       @db.ObjectId
+  bookingId   String         @db.ObjectId
+  type        PaymentTxnType
+  amountMinor Int
+  currency    String
+  provider    String?
+  providerRef String?
+  status      PaymentStatus
+  createdAt   DateTime       @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([providerRef])
+}
+
+model PlatformFee {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId   String            @unique @db.ObjectId
+  paymentId   String            @db.ObjectId
+  driverId    String            @db.ObjectId
+  amountMinor Int
+  currency    String
+  status      PlatformFeeStatus
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([driverId, status])
+  @@index([status])
+}
+
+model DriverLedger {
+  id                          String   @id @default(auto()) @map("_id") @db.ObjectId
+  driverId                    String   @unique @db.ObjectId
+  payableMinor                Int      @default(0)
+  outstandingFeeMinor         Int      @default(0)
+  lifetimeEarningMinor        Int      @default(0)
+  lifetimeDirectReceivedMinor Int      @default(0)
+  lifetimePlatformFeeMinor    Int      @default(0)
+  currency                    String
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
+model WalletTransaction {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  driverId         String          @db.ObjectId
+  bookingId        String?         @db.ObjectId
+  settlementId     String?         @db.ObjectId
+  account          WalletAccount
+  direction        LedgerDirection
+  amountMinor      Int
+  currency         String
+  balanceAfterMinor Int
+  memo             String
+  createdAt        DateTime        @default(now())
+
+  @@index([driverId, createdAt])
+  @@index([bookingId])
+}
+
+model DriverSettlement {
+  id             String               @id @default(auto()) @map("_id") @db.ObjectId
+  driverId       String               @db.ObjectId
+  direction      SettlementDirection
+  amountMinor    Int
+  currency       String
+  status         SettlementStatus
+  provider       String?
+  providerRef    String?              @unique
+  idempotencyKey String
+  feeIds         String[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  completedAt    DateTime?
+
+  @@unique([driverId, idempotencyKey])
+  @@index([driverId, createdAt])
+  @@index([status])
+}
+
+model DriverPaymentMethod {
+  id                  String           @id @default(auto()) @map("_id") @db.ObjectId
+  driverId            String           @db.ObjectId
+  methodType          PayoutMethodType
+  upiId               String?
+  accountHolderName   String?
+  bankName            String?
+  accountNumberLast4  String?
+  ifsc                String?
+  isDefault           Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+
+  @@index([driverId, deletedAt])
+}
+
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorUserId String?  @db.ObjectId
+  action      String
+  entityType  String
+  entityId    String
+  summary     String
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

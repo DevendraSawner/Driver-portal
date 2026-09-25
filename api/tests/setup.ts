@@ -1,0 +1,14 @@
+process.env.NODE_ENV = "test";
+process.env.PORT = "4000";
+process.env.DATABASE_URL = "mongodb://127.0.0.1:27017/driver_platform_test";
+process.env.JWT_ACCESS_SECRET = "test-access-secret-with-32-characters";
+process.env.JWT_REFRESH_SECRET = "test-refresh-secret-with-32-characters";
+process.env.OTP_HASH_SECRET = "test-otp-hash-secret-with-32-characters";
+process.env.CORS_ORIGINS = "http://localhost:5173";
+process.env.OTP_DELIVERY = "console";
+process.env.PLATFORM_FEE_BPS = "1000";
+process.env.SEARCH_TIMEOUT_MINUTES = "15";
+process.env.SCHEDULED_SEARCH_LEAD_MINUTES = "60";
+process.env.SCHEDULE_MAX_DAYS = "30";
+process.env.PAYMENT_PROVIDER = "sandbox";
+process.env.PAYMENT_WEBHOOK_SECRET = "test-webhook-secret";
